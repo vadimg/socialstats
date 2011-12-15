@@ -1,0 +1,9 @@
+{% extends "layout.html" %}
+
+{% block title %}The current time{% endblock %}
+
+{% block content %}
+<h1 class="event-name">{{ event.name }}</h1>
+<div class="event-time event-start">{{ event.start }}</div>
+<div class="event-time event-end">{{ event.end }}</div>
+{% endblock %}
