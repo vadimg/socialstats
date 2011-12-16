@@ -1,18 +1,97 @@
-from django.core import serializers
-from django.http import Http404, HttpResponse
+from django.db.models import Max
+from django.core.context_processors import csrf
+from django.contrib.auth.decorators import login_required
+from django.http import Http404, HttpResponse, HttpResponseRedirect
 from django.shortcuts import render_to_response
 from events.models import Event, EventStat
+from events.forms import AddEventForm
+from events.tasks import monitor_stats
 
 import datetime
+import dateutil.parser
 import time
 import simplejson
+import re
+
+from grabber.facebook import Api
+
+fb_api = Api()
+
+def make_event(event, stat):
+    return {
+        'id': event.id,
+        'name': event.name,
+        'start': event.start,
+        'end': event.end,
+        'invited': stat.invited,
+        'going': stat.going,
+        'maybe': stat.maybe,
+    }
 
 def index(req):
-    events = Event.objects.all()
+
+    events = Event.objects.all().select_related()
+    ret = []
+    for e in events:
+        s = e.eventstat_set.latest('time')
+        ret.append(make_event(e, s))
 
     return render_to_response('index.html', {
-        'events': events
+        'events': ret
     })
+
+def event_details(req, event_id):
+    event_id = make_int(event_id)
+
+    event = Event.objects.get(id=event_id)
+    ret = make_event(event, event.eventstat_set.latest('time'))
+    return render_to_response('event_details.html', { 'event': ret })
+
+def event_stats(req, event_id, start):
+    event_id = make_int(event_id)
+    start = make_datetime(start)
+
+    # TODO: this is very bad
+    stats = EventStat.objects.filter(event=event_id, time__gte=start)
+    arr = make_objarr(stats, ('invited', 'going', 'maybe', 'time'))
+    return HttpResponse(JSONEncoder().encode(arr), mimetype='application/json')
+
+@login_required
+def add_event(req):
+    if req.method == 'POST':
+        form = AddEventForm(req.POST)
+        if form.is_valid():
+            data = form.cleaned_data
+            url = data.get('event_url')
+            match = re.search(r'://(www\.)?facebook.com/events/(\d+)', url)
+            if match:
+                event_id = int(match.group(2))
+                event = fb_api.get_info(event_id)
+
+                name = event[u'name']
+                start = dateutil.parser.parse(event[u'start_time'])
+                end = dateutil.parser.parse(event[u'end_time'])
+
+                Event.objects.create(user_id=req.user.id, id=event_id, name=name, start=start, end=end)
+                monitor_stats.delay(event_id)
+
+                return HttpResponseRedirect('/event/{0}'.format(event_id))
+    else:
+        form = AddEventForm()
+
+    context = {
+        'form': form
+    }
+    context.update(csrf(req))
+    return render_to_response('add_event.html', context)
+
+
+class JSONEncoder(simplejson.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, datetime.datetime):
+            return int(time.mktime(obj.timetuple()))
+        else:
+            return simplejson.JSONEncoder.default(self, obj)
 
 def make_int(s):
     try:
@@ -30,31 +109,9 @@ def make_objarr(qs, fields):
     """return an array of objects for all rows in the QuerySet"""
     ret = []
     for o in qs:
-        d = {}
+        d = []
         for attr in fields:
-            d[attr] = getattr(o, attr)
+            d.append(getattr(o, attr))
         ret.append(d)
     return ret
 
-def event_details(req, event_id):
-    event_id = make_int(event_id)
-
-    event = Event.objects.get(id=event_id)
-    return render_to_response('event_details.html', { 'event': event })
-
-def event_stats(req, event_id, start, end):
-    event_id = make_int(event_id)
-    start = make_datetime(start)
-    end = make_datetime(end)
-
-    # TODO: this is very bad
-    stats = EventStat.objects.filter(time__gte=start, time__lte=end)
-    arr = make_objarr(stats, ('invited', 'attending', 'maybe', 'time'))
-    return HttpResponse(JSONEncoder().encode(arr))
-
-class JSONEncoder(simplejson.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, datetime.datetime):
-            return int(time.mktime(obj.timetuple()))
-        else:
-            return simplejson.JSONEncoder.default(self, obj)

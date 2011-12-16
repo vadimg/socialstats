@@ -13,15 +13,14 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql_psycopg2', # Add 'postgresql_psycopg2', 'postgresql', 'mysql', 'sqlite3' or 'oracle'.
         'NAME': 'socialstats',                      # Or path to database file if using sqlite3.
-        'USER': 'socialstats',                      # Not used with sqlite3.
+        'USER': 'postgres',                      # Not used with sqlite3.
         'PASSWORD': 'dev',                  # Not used with sqlite3.
-        'HOST': '',                      # Set to empty string for localhost. Not used with sqlite3.
+        'HOST': '/tmp/',                      # Set to empty string for localhost. Not used with sqlite3.
         'PORT': '',                      # Set to empty string for default. Not used with sqlite3.
     }
 }
 
-# Local time zone for this installation. Choices can be found here:
-# http://en.wikipedia.org/wiki/List_of_tz_zones_by_name
+# Local time zone for this installation. Choices can be found here: # http://en.wikipedia.org/wiki/List_of_tz_zones_by_name
 # although not all choices may be available on all operating systems.
 # On Unix systems, a value of None will cause Django to use the same
 # timezone as the operating system.
@@ -122,6 +121,8 @@ INSTALLED_APPS = (
      'django.contrib.admin',
     # Uncomment the next line to enable admin documentation:
      'django.contrib.admindocs',
+     'celery',
+     'djcelery',
 )
 
 # A sample logging configuration. The only tangible logging
@@ -146,3 +147,12 @@ LOGGING = {
         },
     }
 }
+
+# celery config
+import djcelery
+djcelery.setup_loader()
+CELERY_IMPORTS = ('events.tasks',)
+CELERY_RESULT_BACKEND = 'amqp'
+CELERY_RESULT_PERSISTENT = True
+CELERYD_CONCURRENCY = 1
+CELERYD_TASK_TIME_LIMIT = 30

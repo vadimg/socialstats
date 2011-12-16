@@ -11,7 +11,7 @@ class Event(models.Model):
 class EventStat(models.Model):
     event = models.ForeignKey(Event)
     invited = models.PositiveIntegerField()
-    attending = models.PositiveIntegerField()
+    going = models.PositiveIntegerField()
     maybe = models.PositiveIntegerField()
     time = models.DateTimeField()
 

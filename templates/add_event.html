@@ -1,0 +1,13 @@
+{% extends "layout.html" %}
+
+{% block title %}Add Event{% endblock %}
+
+{% block content %}
+<h1>Add Event</h1>
+<form action="" method="post">{% csrf_token %}
+    <ul class="add-event">
+        {{ form.as_ul }}
+    </ul>
+    <input type="submit" value="Submit">
+</form>
+{% endblock %}
