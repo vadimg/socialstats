@@ -123,6 +123,7 @@ INSTALLED_APPS = (
      'django.contrib.admindocs',
      'celery',
      'djcelery',
+     'django_bcrypt',
 )
 
 # A sample logging configuration. The only tangible logging

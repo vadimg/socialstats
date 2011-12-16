@@ -1,4 +1,5 @@
 from django.db.models import Max
+from django.db import IntegrityError
 from django.core.context_processors import csrf
 from django.contrib.auth.decorators import login_required
 from django.http import Http404, HttpResponse, HttpResponseRedirect
@@ -17,20 +18,20 @@ from grabber.facebook import Api
 
 fb_api = Api()
 
-def make_event(event, stat):
-    return {
-        'id': event.id,
-        'name': event.name,
-        'start': event.start,
-        'end': event.end,
-        'invited': stat.invited,
-        'going': stat.going,
-        'maybe': stat.maybe,
-    }
-
 def index(req):
-
     events = Event.objects.all().select_related()
+    ret = []
+    for e in events:
+        s = e.eventstat_set.latest('time')
+        ret.append(make_event(e, s))
+
+    return render_to_response('index.html', {
+        'events': ret
+    })
+
+@login_required
+def profile(req):
+    events = Event.objects.filter(user=req.user.id).select_related()
     ret = []
     for e in events:
         s = e.eventstat_set.latest('time')
@@ -43,7 +44,11 @@ def index(req):
 def event_details(req, event_id):
     event_id = make_int(event_id)
 
-    event = Event.objects.get(id=event_id)
+    try:
+        event = Event.objects.get(id=event_id)
+    except Event.DoesNotExist:
+        raise Http404()
+
     ret = make_event(event, event.eventstat_set.latest('time'))
     return render_to_response('event_details.html', { 'event': ret })
 
@@ -66,14 +71,22 @@ def add_event(req):
             match = re.search(r'://(www\.)?facebook.com/events/(\d+)', url)
             if match:
                 event_id = int(match.group(2))
-                event = fb_api.get_info(event_id)
 
-                name = event[u'name']
-                start = dateutil.parser.parse(event[u'start_time'])
-                end = dateutil.parser.parse(event[u'end_time'])
+                if not Event.objects.filter(id=event_id).exists():
+                    # only get event data if event wasn't already added
+                    # TODO: let user know event was already added
+                    event = fb_api.get_info(event_id)
 
-                Event.objects.create(user_id=req.user.id, id=event_id, name=name, start=start, end=end)
-                monitor_stats.delay(event_id)
+                    name = event[u'name']
+                    start = dateutil.parser.parse(event[u'start_time'])
+                    end = dateutil.parser.parse(event[u'end_time'])
+
+                    Event.objects.create(user_id=req.user.id,
+                                         id=event_id,
+                                         name=name,
+                                         start=start,
+                                         end=end)
+                    monitor_stats.delay(event_id)
 
                 return HttpResponseRedirect('/event/{0}'.format(event_id))
     else:
@@ -114,4 +127,15 @@ def make_objarr(qs, fields):
             d.append(getattr(o, attr))
         ret.append(d)
     return ret
+
+def make_event(event, stat):
+    return {
+        'id': event.id,
+        'name': event.name,
+        'start': event.start,
+        'end': event.end,
+        'invited': stat.invited,
+        'going': stat.going,
+        'maybe': stat.maybe,
+    }
 
