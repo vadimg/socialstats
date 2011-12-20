@@ -2,8 +2,10 @@ from django.db.models import Max
 from django.db import IntegrityError
 from django.core.context_processors import csrf
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.forms import UserCreationForm
 from django.http import Http404, HttpResponse, HttpResponseRedirect
 from django.shortcuts import render_to_response
+
 from events.models import Event, EventStat
 from events.forms import AddEventForm
 from events.tasks import monitor_stats
@@ -28,6 +30,19 @@ def index(req):
     return render_to_response('index.html', {
         'events': ret
     })
+
+def register(req):
+    form = UserCreationForm()
+    if req.method == 'POST':
+        data = req.POST.copy()
+        print dir(form)
+        errors = form.get_validation_errors(data)
+        if not errors:
+            new_user = form.save()
+            return HttpResponseRedirect("/accounts/created/")
+    else:
+        context = { 'form': form }
+        return render_to_response("registration/register.html", context, context_instance=RequestContext(req))
 
 @login_required
 def profile(req):
@@ -95,8 +110,7 @@ def add_event(req):
     context = {
         'form': form
     }
-    context.update(csrf(req))
-    return render_to_response('add_event.html', context)
+    return render_to_response('add_event.html', context, context_instance=RequestContext(req))
 
 
 class JSONEncoder(simplejson.JSONEncoder):
