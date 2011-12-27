@@ -15,7 +15,7 @@ DATABASES = {
         'NAME': 'socialstats',                      # Or path to database file if using sqlite3.
         'USER': 'postgres',                      # Not used with sqlite3.
         'PASSWORD': 'dev',                  # Not used with sqlite3.
-        'HOST': '/tmp/',                      # Set to empty string for localhost. Not used with sqlite3.
+        'HOST': '/tmp',                      # Set to empty string for localhost. Not used with sqlite3.
         'PORT': '',                      # Set to empty string for default. Not used with sqlite3.
     }
 }
@@ -160,3 +160,7 @@ CELERY_RESULT_BACKEND = 'amqp'
 CELERY_RESULT_PERSISTENT = True
 CELERYD_CONCURRENCY = 1
 CELERYD_TASK_TIME_LIMIT = 30
+
+# email
+EMAIL_HOST = 'localhost'
+EMAIL_PORT = 1025
